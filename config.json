@@ -1,0 +1,8 @@
+{
+	"listen_address": "0.0.0.0",
+	"listen_port": 8888,
+	"http_address": "baidu.com",
+	"http_port": 80,
+	"proxy_address": "127.0.0.1",
+	"proxy_port": 80
+}

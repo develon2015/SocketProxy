@@ -1,8 +1,10 @@
+import lib.config.JsonConfig
 import lib.log.Logger
 import java.net.*
 import java.io.*
 
 val log = Logger()
+val config = JsonConfig("config.json")
 
 class SocketProxy() {
 	fun handleConn(conn: Socket) {
@@ -10,7 +12,9 @@ class SocketProxy() {
 		val ous = conn.getOutputStream()
 
 		val connProxy = Socket()
-		connProxy.connect(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 80))
+        val proxyAddress = InetSocketAddress(Inet4Address.getByName(config.get("proxy_address")), config.get("proxy_port").toInt())
+		connProxy.connect(proxyAddress)
+
 		val proxyIns = connProxy.getInputStream()
 		val proxyOus = connProxy.getOutputStream()
 
@@ -27,14 +31,14 @@ class SocketProxy() {
 						e.printStackTrace()
 					}
                     try {
-//						close()
+                        connProxy.shutdownOutput()
 					} catch (e: java.lang.Exception) {
 						e.printStackTrace()
 					}
 				}
 
 				try {
-					ins.close()
+					conn.shutdownInput()
 				} catch (e: java.lang.Exception) {
 					e.printStackTrace()
 				}
@@ -46,16 +50,18 @@ class SocketProxy() {
 				val length = try {
 					ins.read(request) // 此处堵塞
 				} catch (e: java.lang.Exception) {
+					log.d("conn输入流错误")
 					flag = false
 					close()
 					return@Thread
 				}
+
 				if (length < 1) {
-					log.d("EOF")
-					flag = false
+                    log.d("conn输入流关机")
 					close()
 					break
 				}
+
 				log.d("request -> ${ String(request, 0, length) }")
 				// request write to proxyConn
 				try {
@@ -69,10 +75,11 @@ class SocketProxy() {
 			log.d("proxy thread ending")
 		}.start()
 
+		// 等待connProxy的response，写入conn
 		while (flag) {
 			fun close() {
                 try {
-					proxyIns.close()
+					connProxy.shutdownInput()
 				} catch (e: java.lang.Exception) {
 					e.printStackTrace()
 				}
@@ -84,7 +91,7 @@ class SocketProxy() {
 						e.printStackTrace()
 					}
 					try {
-//					    close()
+                        conn.shutdownOutput()
 					} catch (e: java.lang.Exception) {
 						e.printStackTrace()
 					}
@@ -96,35 +103,45 @@ class SocketProxy() {
 			val length = try {
 				proxyIns.read(response)
 			} catch (e: java.lang.Exception) {
-				log.d("response EOF")
+				log.d("connProxy输入流错误")
 				flag = false
 				close()
 				break
 			}
 
 			if (length < 1) {
-				// what happened
-				log.d("response < 1 -> $length")
-				continue
+				log.d("connProxy输入流关机")
+                close()
+                break
 			}
 			log.d("response完毕 -> ${String(response, 0, length)}")
 			try {
 				ous.write(response, 0, length)
 			} catch (e: java.lang.Exception) {
+				log.d("conn输出流错误")
 				flag = false
 				close()
 				break
 			}
+		}
+
+		// 关闭connProxy
+        if (false)
+		try {
+		    connProxy.close()
+		} catch (e: java.lang.Exception) {
+			log.d("关闭connProxy时发生了错误，${ e.message }")
 		}
 	}
 }
 
 fun main(args: Array<String>) {
 	val proxy = SocketProxy()
-	val port = 8888
-	val sock = ServerSocket(port)
+	val listenAddress = InetAddress.getByName(config.get("listen_address"))
+	val listenPort = config.get("listen_port").toInt()
+	val sock = ServerSocket(listenPort, 0, listenAddress)
 
-	log.d("监听于端口$port")
+	log.d("监听于$listenAddress : $listenPort")
 
 	while (true) {
 		val conn = sock.accept()
@@ -133,13 +150,13 @@ fun main(args: Array<String>) {
 			try {
 				proxy.handleConn(conn)
 			} catch(e: Exception) {
-				log.d(e.message ?: "Unknown error")
+				log.d("处理连接时发生了异常：${ e.message ?: "Unknown error" }")
 			}
 
 			try {
 				conn.close()
 			} catch(e: Exception) {
-				log.d("${ e.message }")
+				log.d("关闭 $conn 时发生了异常：${ e.message }")
 			}
 		}.start()
 	}
