@@ -2,7 +2,8 @@
 SHELL := /bin/bash
 
 DIR := ./out/production/SocketProxy
-Target := $(DIR)/MainKt.class
+Tajget := $(DIR)/MainKt.class
+Jar := ./socketproxy.jar
 Proxy := makefile_proxy
 KC := kc
 JK := jk
@@ -11,9 +12,13 @@ JK := jk
 
 .PHONY: all
 all: $(Target)
+jar: $(Jar)
 
 $(Target): $(shell find src -name '*kt') | $(DIR)
 	$(KC) -d $(DIR) $^
+
+$(Jar): $(shell find src -name '*kt')
+	kotlinc -d $@ $^ -include-runtime
 
 $(DIR):
 	mkdir -p $@

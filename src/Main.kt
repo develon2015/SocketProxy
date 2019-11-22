@@ -8,23 +8,27 @@ val config = JsonConfig("config.json")
 
 class SocketProxy() {
 	fun handleConn(conn: Socket) {
-		val ins = conn.getInputStream()
+		val ins = BufferedInputStream(conn.getInputStream())
 		val ous = conn.getOutputStream()
 
 		// HTTP protocol
         var buf = ByteArray(1024)
+		ins.mark(1024)
 		val testSize = ins.read(buf)
-        val test = try {
-			String(buf, 0, testSize).split("""(\r\n|\n""".toRegex(), 2)[0]
+		ins.reset()
+		val test = try {
+			String(buf, 0, testSize).split("""(\r\n|\n)""".toRegex(), 2)[0]
 		} catch (e: java.lang.Exception) { "" }
 
 		val regex = """(?:GET|HEAD|POST|PUT|DELETE).*""".toRegex()
 		val proxyAddress =
 			if (regex.matches(test)) {
                 log.d("HTTP代理")
-				InetSocketAddress(Inet4Address.getByName(config.get("proxy_address")), config.get("proxy_port").toInt())
-			} else
 				InetSocketAddress(Inet4Address.getByName(config.get("http_address")), config.get("http_port").toInt())
+			} else {
+				log.d("Not HTTP代理")
+				InetSocketAddress(Inet4Address.getByName(config.get("proxy_address")), config.get("proxy_port").toInt())
+			}
 
 		val connProxy = Socket()
 		connProxy.connect(proxyAddress)
