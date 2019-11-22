@@ -1,6 +1,6 @@
 package lib.config
 
-import test.log
+import log
 import java.io.File
 
 class JsonConfig(file: File) {
