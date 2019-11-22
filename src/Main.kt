@@ -11,8 +11,22 @@ class SocketProxy() {
 		val ins = conn.getInputStream()
 		val ous = conn.getOutputStream()
 
+		// HTTP protocol
+        var buf = ByteArray(1024)
+		val testSize = ins.read(buf)
+        val test = try {
+			String(buf, 0, testSize).split("""(\r\n|\n""".toRegex(), 2)[0]
+		} catch (e: java.lang.Exception) { "" }
+
+		val regex = """(?:GET|HEAD|POST|PUT|DELETE).*""".toRegex()
+		val proxyAddress =
+			if (regex.matches(test)) {
+                log.d("HTTP代理")
+				InetSocketAddress(Inet4Address.getByName(config.get("proxy_address")), config.get("proxy_port").toInt())
+			} else
+				InetSocketAddress(Inet4Address.getByName(config.get("http_address")), config.get("http_port").toInt())
+
 		val connProxy = Socket()
-        val proxyAddress = InetSocketAddress(Inet4Address.getByName(config.get("proxy_address")), config.get("proxy_port").toInt())
 		connProxy.connect(proxyAddress)
 
 		val proxyIns = connProxy.getInputStream()
@@ -62,7 +76,7 @@ class SocketProxy() {
 					break
 				}
 
-				log.d("request -> ${ String(request, 0, length) }")
+//				log.d("request -> ${ String(request, 0, length) }")
 				// request write to proxyConn
 				try {
 					proxyOus.write(request, 0, length)
@@ -72,7 +86,7 @@ class SocketProxy() {
 				}
 			}
 
-			log.d("proxy thread ending")
+			log.d("proxy request thread ending")
 		}.start()
 
 		// 等待connProxy的response，写入conn
@@ -114,7 +128,9 @@ class SocketProxy() {
                 close()
                 break
 			}
-			log.d("response完毕 -> ${String(response, 0, length)}")
+
+//			log.d("response完毕 -> ${String(response, 0, length)}")
+
 			try {
 				ous.write(response, 0, length)
 			} catch (e: java.lang.Exception) {
@@ -132,6 +148,8 @@ class SocketProxy() {
 		} catch (e: java.lang.Exception) {
 			log.d("关闭connProxy时发生了错误，${ e.message }")
 		}
+
+		log.d("proxy response thread ending")
 	}
 }
 
